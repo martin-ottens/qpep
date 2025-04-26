@@ -35,7 +35,7 @@ func (listener *ClientProxyListener) Close() error {
 	return listener.base.Close()
 }
 
-func NewClientProxyListener(network string, laddr *net.TCPAddr) (net.Listener, error) {
+func NewClientProxyListener(network string, laddr *net.TCPAddr, useFastOpen bool) (net.Listener, error) {
 	//Open basic TCP listener
 	listener, err := net.ListenTCP(network, laddr)
 	if err != nil {
@@ -54,8 +54,10 @@ func NewClientProxyListener(network string, laddr *net.TCPAddr) (net.Listener, e
 		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("set socket option: IP_TRANSPARENT: %s", err)}
 	}
 
-	if err = syscall.SetsockoptInt(int(fileDescriptorSource.Fd()), syscall.SOL_TCP, unix.TCP_FASTOPEN, 1); err != nil {
-		return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("set socket option: TCP_FASTOPEN: %s", err)}
+	if useFastOpen {
+		if err = syscall.SetsockoptInt(int(fileDescriptorSource.Fd()), syscall.SOL_TCP, unix.TCP_FASTOPEN, 1); err != nil {
+			return nil, &net.OpError{Op: "listen", Net: network, Source: nil, Addr: laddr, Err: fmt.Errorf("set socket option: TCP_FASTOPEN: %s", err)}
+		}
 	}
 
 	//return a derived TCP listener object with TCProxy support

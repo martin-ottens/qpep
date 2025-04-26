@@ -2,7 +2,7 @@ package client
 
 import (
 	"crypto/tls"
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 	"golang.org/x/net/context"
 	"io"
 	"log"
@@ -21,10 +21,11 @@ var (
 		GatewayHost: "198.18.0.254", GatewayPort: 4242,
 		QuicStreamTimeout: 2, MultiStream: shared.QuicConfiguration.MultiStream,
 		ConnectionRetries: 3,
-		IdleTimeout:       time.Duration(300) * time.Second}
-	quicSession             quic.Session
+		IdleTimeout:       time.Duration(300) * time.Second,
+		TCPFastOpen:       shared.QuicConfiguration.TCPFastOpen,
+	}
+	quicSession             quic.Connection
 	QuicClientConfiguration = quic.Config{
-		IdleTimeout:        time.Duration(300) * time.Second,
 		MaxIncomingStreams: 40000,
 	}
 )
@@ -38,6 +39,7 @@ type ClientConfig struct {
 	MultiStream       bool
 	IdleTimeout       time.Duration
 	ConnectionRetries int
+	TCPFastOpen       bool
 }
 
 func RunClient() {
@@ -45,7 +47,7 @@ func RunClient() {
 	log.Printf("Binding to TCP %s:%d", ClientConfiguration.ListenHost, ClientConfiguration.ListenPort)
 	var err error
 	proxyListener, err = NewClientProxyListener("tcp", &net.TCPAddr{IP: net.ParseIP(ClientConfiguration.ListenHost),
-		Port: ClientConfiguration.ListenPort})
+		Port: ClientConfiguration.ListenPort}, ClientConfiguration.TCPFastOpen)
 	if err != nil {
 		log.Fatalf("Encountered error when binding client proxy listener: %s", err)
 	}
@@ -54,7 +56,7 @@ func RunClient() {
 
 	go ListenTCPConn()
 
-	interruptListener := make(chan os.Signal)
+	interruptListener := make(chan os.Signal, 1)
 	signal.Notify(interruptListener, os.Interrupt)
 	<-interruptListener
 	log.Println("Exiting...")
@@ -90,7 +92,7 @@ func handleTCPConn(tcpConn net.Conn) {
 			quicStream, err = quicSession.OpenStream()
 			// if we weren't able to open a quicStream on that session (usually inactivity timeout), we can try to open a new session
 			if err != nil {
-				log.Printf("Unable to open new stream on existing QUIC session: %s\n")
+				log.Printf("Unable to open new stream on existing QUIC session: %s\n", err)
 				quicStream = nil
 			} else {
 				log.Printf("Opened a new stream: %d", quicStream.StreamID())
@@ -161,14 +163,15 @@ func handleTCPConn(tcpConn net.Conn) {
 	log.Printf("Done sending data on %d", quicStream.StreamID())
 }
 
-func openQuicSession() (quic.Session, error) {
+func openQuicSession() (quic.Connection, error) {
 	var err error
-	var session quic.Session
+	var session quic.Connection
 	tlsConf := &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"qpep-demo"}}
 	gatewayPath := ClientConfiguration.GatewayHost + ":" + strconv.Itoa(ClientConfiguration.GatewayPort)
 	quicClientConfig := QuicClientConfiguration
-	for i := 0; i < ClientConfiguration.ConnectionRetries; i++ {
-		session, err = quic.DialAddr(gatewayPath, tlsConf, &quicClientConfig)
+	for range ClientConfiguration.ConnectionRetries {
+		ctx, _ := context.WithTimeout(context.Background(), ClientConfiguration.IdleTimeout)
+		session, err = quic.DialAddr(ctx, gatewayPath, tlsConf, &quicClientConfig)
 		if err == nil {
 			return session, nil
 		} else {
@@ -178,22 +181,4 @@ func openQuicSession() (quic.Session, error) {
 
 	log.Printf("Max Retries Exceeded. Unable to Open QUIC Session: %s\n", err)
 	return nil, err
-}
-
-func openQuicStream(session quic.Session) (quic.Stream, error) {
-
-	stream, err := session.OpenStreamSync(context.Background())
-	if err != nil {
-
-		//If the current tunnel has timed out, open a new tunnel for traffic
-		if err.Error() == "NO_ERROR: No recent network activity" {
-			quicSession, err = openQuicSession()
-			stream, err = quicSession.OpenStreamSync(context.Background())
-		} else {
-			log.Printf("Error opening quic stream: %s", err)
-			return nil, err
-		}
-	}
-
-	return stream, nil
 }

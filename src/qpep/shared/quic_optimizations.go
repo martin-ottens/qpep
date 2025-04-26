@@ -14,6 +14,7 @@ type QuicConfig struct {
 	MinReceivedBeforeAckDecimation int
 	ClientFlag bool
 	GatewayIP string
+	TCPFastOpen bool
 }
 
 var ( 
@@ -30,6 +31,7 @@ func init() {
 	minReceivedBeforeAckDecimationFlag := flag.Int("minBeforeDecimation", 100, "Minimum number of packets before initiating ack decimation")
 	clientFlag := flag.Bool("client", false, "a bool")
 	gatewayFlag := flag.String("gateway", "198.18.0.254", "IP address of gateway running qpep")
+	fastOpenFlag := flag.Bool("fastopen", true, "Use the TCP_FASTOPEN flag")
 
 	flag.Parse()
 	QuicConfiguration = QuicConfig{
@@ -42,5 +44,6 @@ func init() {
 		MinReceivedBeforeAckDecimation: *minReceivedBeforeAckDecimationFlag,
 		ClientFlag: *clientFlag,
 		GatewayIP: *gatewayFlag,
+		TCPFastOpen: *fastOpenFlag,
 	}
 }

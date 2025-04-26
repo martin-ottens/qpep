@@ -17,9 +17,10 @@ func main() {
 		fmt.Println("Running Client")
 		go client.RunClient()
 	} else {
+		fmt.Println("Running Server")
 		go server.RunServer()
 	}
-	interruptListener := make(chan os.Signal)
+	interruptListener := make(chan os.Signal, 1)
 	signal.Notify(interruptListener, os.Interrupt)
 	<-interruptListener
 	log.Println("Exiting...")

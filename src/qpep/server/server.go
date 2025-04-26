@@ -6,8 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/lucas-clemente/quic-go"
-	"golang.org/x/net/context"
 	"io"
 	"log"
 	"math/big"
@@ -19,12 +17,15 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/quic-go/quic-go"
+	"golang.org/x/net/context"
 )
 
 var (
 	serverConfig = ServerConfig{ListenHost: "0.0.0.0", ListenPort: 4242}
-	quicListener quic.Listener
-	quicSession  quic.Session
+	quicListener *quic.Listener
+	quicSession  quic.Connection
 )
 
 type ServerConfig struct {
@@ -45,7 +46,7 @@ func RunServer() {
 
 	go ListenQuicSession()
 
-	interruptListener := make(chan os.Signal)
+	interruptListener := make(chan os.Signal, 1)
 	signal.Notify(interruptListener, os.Interrupt)
 	<-interruptListener
 	log.Println("Exiting...")
@@ -64,7 +65,7 @@ func ListenQuicSession() {
 	}
 }
 
-func ListenQuicConn(quicSession quic.Session) {
+func ListenQuicConn(quicSession quic.Connection) {
 	for {
 		stream, err := quicSession.AcceptStream(context.Background())
 		if err != nil {
