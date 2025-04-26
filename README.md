@@ -47,7 +47,7 @@ First, create a new directory and clone this github repository into it.
 ```
 > mkdir C:\qpep
 > cd C:\qpep
-> git clone https://github.com/pavja2/qpep --recursive
+> git clone https://github.com/pavja2/qpep
 ```
 Create a python3 virtualenv inside the directory and use pip to install necessary python dependencies ([docker-py](https://pypi.org/project/docker/), [loguru](https://pypi.org/project/loguru/), [numpy](https://numpy.org/), [python-dotenv](https://github.com/theskumar/python-dotenv) and [nclib](https://pypi.org/project/nclib/)):
 ```
